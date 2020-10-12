@@ -1,0 +1,124 @@
+---
+title: "web_scrap_Sushmit_Dhar"
+author: "Sushmit Dhar"
+date: "`r format(Sys.time(), '%d %b %Y')`"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+##packages
+library(rvest)
+library(tidyverse)
+library(purrr)
+library(lubridate)
+library(dplyr)
+
+url_base_1 <- "https://w2.brreg.no/kunngjoring/kombisok.jsp?datoFra=01.0%d.2019&datoTil=01.0%d.2019&id_region=0&id_niva1=51&id_niva2=-+-+-&id_bransje1=0"
+
+map_df(1:9, function(i) {
+  set.seed(i)
+  page <- read_html(sprintf(url_base_1,i,i+1))
+  
+  page <-page %>%
+    html_nodes(xpath = "//table[(((count(preceding-sibling::*) + 1) = 6) and parent::*)]//td") %>%
+    html_nodes("table")%>%
+    html_table(fill = TRUE)
+  return(page)
+  
+}) ->map_2019_1
+
+url_base_2 <- "https://w2.brreg.no/kunngjoring/kombisok.jsp?datoFra=01.0%d.2019&datoTil=01.%d.2019&id_region=0&id_niva1=51&id_niva2=-+-+-&id_bransje1=0"
+
+map_df(9:10, function(i) {
+  set.seed(i)
+  page <- read_html(sprintf(url_base_2,i,i+1))
+  
+  page <-page %>%
+    html_nodes(xpath = "//table[(((count(preceding-sibling::*) + 1) = 6) and parent::*)]//td") %>%
+    html_nodes("table")%>%
+    html_table(fill = TRUE)
+  return(page)
+  
+}) ->map_2019_2
+
+url_base_3 <- "https://w2.brreg.no/kunngjoring/kombisok.jsp?datoFra=01.%d.2019&datoTil=01.%d.2019&id_region=0&id_niva1=51&id_niva2=-+-+-&id_bransje1=0"
+
+map_df(10:11, function(i) {
+  set.seed(i)
+  page <- read_html(sprintf(url_base_3,i,i+1))
+  
+  page <-page %>%
+    html_nodes(xpath = "//table[(((count(preceding-sibling::*) + 1) = 6) and parent::*)]//td") %>%
+    html_nodes("table")%>%
+    html_table(fill = TRUE)
+  return(page)
+  
+}) ->map_2019_3
+
+url_base_1 <- "https://w2.brreg.no/kunngjoring/kombisok.jsp?datoFra=01.0%d.2020&datoTil=01.0%d.2020&id_region=0&id_niva1=51&id_niva2=-+-+-&id_bransje1=0"
+
+map_df(1:9, function(i) {
+  set.seed(i)
+  page <- read_html(sprintf(url_base_1,i,i+1))
+  
+  page <-page %>%
+    html_nodes(xpath = "//table[(((count(preceding-sibling::*) + 1) = 6) and parent::*)]//td") %>%
+    html_nodes("table")%>%
+    html_table(fill = TRUE)
+  return(page)
+  
+}) ->map_2020
+
+##arranging to usable data frame
+f_df<- bind_rows(map_2019_1,map_2019_2,map_2019_3,map_2020)
+
+
+f_df<- f_df %>%
+  select(.,X2,X4,X6,X8) %>%
+  mutate(region=ifelse(grepl("[^Dato][A-Za-z]", X6), X6, NA)) %>% 
+  fill(region)%>%
+  filter(X8 == "Konkursåpning") %>%
+  filter(nchar(X4)>8)
+
+
+f_df<- f_df%>%  mutate(f_df$X6 <-as.Date(f_df$X6, format = "%d.%m.%Y"))
+
+colnames(f_df)<- c("Name","Number","Dato","Status","Region","Date")
+
+
+f_df<-f_df %>%
+  mutate(
+    dates2=ymd(Date),
+    Year=year(dates2),
+    Month=month(dates2),
+    Date=day(dates2)
+  )
+
+
+
+f_df<- f_df%>%
+  select(Name,Status, Region,Year, Month)
+colnames(f_df)<-c("Name","Status","Region","Year","Month")
+
+# Counting
+f_df<- f_df%>%
+  group_by(Region,Month, Year)%>%
+  count(Status)
+## 
+f_df$Year<-as.factor(f_df$Year)
+
+```
+
+
+```{r plotBED}
+f_df%>%
+  ggplot(aes(x=Month, y=n, group=Year))+
+  geom_line(aes(color=Year),size=1)+
+  facet_wrap(~Region)+
+  scale_x_continuous(breaks=c(1:12))+
+  ylab("Cumulative number of bankruptcies ")
+```
+
